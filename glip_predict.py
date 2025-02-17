@@ -2,18 +2,15 @@
 # @Time    : 2024/3/7 8:36
 # @Author  : yblir
 # @File    : glip_predict.py
-# explain  : 
-# =======================================================
-import warnings
+# explain  : GLIP test code, running in very beginning to check setting
 
+import warnings
 warnings.filterwarnings("ignore")
 from transformers import logging
-
 logging.set_verbosity_error()
 # pylab.rcParams['figure.figsize'] = 20, 12
 from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.engine.predictor_glip import GLIPDemo
-
 import cv2
 import numpy as np
 import torch
@@ -48,14 +45,14 @@ class Colors:
 
 def draw_images(image, boxes, classes, scores, colors, xyxy=True):
     """
-    对单张图片进行多个框的绘制
+    Boxing define for images
     Args:
-        image: pillow与numpy格式都行, 反正都会转成pillow格式,h,w,c
-        boxes: tensor与numpy格式都行, 最后都会转成numpy格式
+        image: pillow and numpy, finally changed to pillow,h,w,c
+        boxes: tensor or numpy, finally changed to numpy
         xyxy: 默认是xyxy格式, 如果为False,就是xywh格式,需要进行一次格式转换
-        classes: 每个框的类别,list, 与boxes框对应
-        scores: 每个预测类别得分,list, 与boxes框对应
-        colors: 每个类别框颜色
+        classes: box class, list
+        scores: predict score for boxes, list
+        colors: box color
     Returns:
     """
     if isinstance(image, np.ndarray):
@@ -63,10 +60,8 @@ def draw_images(image, boxes, classes, scores, colors, xyxy=True):
     if isinstance(boxes, torch.Tensor):
         boxes = boxes.cpu().numpy()
 
-    # 设置字体,pillow 绘图环节
     font = ImageFont.truetype(font='configs/simhei.ttf',
                               size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
-    # 多次画框的次数,根据图片尺寸不同,把框画粗
     thickness = max((image.size[0] + image.size[1]) // 300, 1)
     draw = ImageDraw.Draw(image)
 
@@ -80,11 +75,10 @@ def draw_images(image, boxes, classes, scores, colors, xyxy=True):
 
         text_origin = np.array([x1, y1 - th]) if y1 - th >= 0 else np.array([x1, y1 + 1])
 
-        # 在目标框周围偏移几个像素多画几次, 让边框变粗
         for j in range(thickness):
             draw.rectangle((x1 + j, y1 + j, x2 - j, y2 - j), outline=color)
 
-        # 画标签
+        # Label
         draw.rectangle((text_origin[0], text_origin[1], text_origin[0] + tw, text_origin[1] + th), fill=color)
         draw.text(text_origin, label, fill=(0, 0, 0), font=font)
 
@@ -111,20 +105,18 @@ glip_demo = GLIPDemo(
 
 
 def glip_inference(image_, caption_):
-    # 为不同类别设置颜色, 从caption提取的类别不同
+    # set colors for different classes
     colors_ = Colors()
 
     preds = glip_demo.compute_prediction(image_, caption_)
     top_preds = glip_demo._post_process(preds, threshold=0.5)
 
-    # 从预测结果中提取预测类别,得分和检测框
+    # extract label, scores and boxes from results
     labels = top_preds.get_field("labels").tolist()
     scores = top_preds.get_field("scores").tolist()
     boxes = top_preds.bbox.detach().cpu().numpy()
 
-    # 为每个预测类别设置框颜色
     colors = [colors_(idx) for idx in labels]
-    # 获得标签数字对应的类别名
     labels_names = glip_demo.get_label_names(labels)
 
     return boxes, scores, labels_names, colors
