@@ -1,0 +1,6 @@
+在使用GLIP目标识别的同时，外接whisper模型，即可以通过语音输入进行目标定位
+GLIP参数需要自行下载glip_tiny_model_o365_goldg_cc_sbu.pth，然后放置在glip_tinyweights中
+bert-base-uncased则需要在文件夹中展示的路径下下载对应文件，并放置于此
+此外考虑到机械臂的复杂应用环境，在执行阶段会运行两次录音，第一次为录取噪声，第二次为录取待检测录音段
+代码分为两个部分，此处为在主机上执行的目标识别部分，代码为glip_demo.py，配置环境后可以在Ubuntu20以上版本运行
+用于机械臂夹取的代码存于arm_execution.py，其应在Linux虚拟机上运行，建议Ubuntu版本为20.04
