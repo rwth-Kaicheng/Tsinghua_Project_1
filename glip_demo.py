@@ -2,7 +2,6 @@ import warnings
 warnings.filterwarnings("ignore")
 from transformers import logging
 logging.set_verbosity_error()
-# pylab.rcParams['figure.figsize'] = 20, 12
 from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.engine.predictor_glip import GLIPDemo
 import sounddevice as sd
@@ -21,19 +20,21 @@ import noisereduce as nr
 import soundfile as sf
 from transformers import MarianMTModel, MarianTokenizer
 
-# 预载中译英的模型
-# 预载spacy中的单词切割模型
+
+# pylab.rcParams['figure.figsize'] = 20, 12
+# Preloading a Chinese-to-English translation mode 'Helsinki-NLP/opus-mt-zh-en'
+# Preloading spacy word splitting mode
 zh2en_model = 'Helsinki-NLP/opus-mt-zh-en'
 tokenizer = MarianTokenizer.from_pretrained(zh2en_model)
 zh2enmodel = MarianMTModel.from_pretrained(zh2en_model)
 nlp = spacy.load("en_core_web_md")
 
 def translate_zh_to_en(text):
-    # 编码文本
+    # encode text
     encoded_text = tokenizer(text, return_tensors="pt", padding=True)
-    # 进行翻译
+    # translation
     translated = zh2enmodel.generate(**encoded_text)
-    # 解码翻译结果
+    # decode text
     translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
     return translated_text
 
@@ -49,7 +50,7 @@ class Colors:
         hexs = (
             "FF3838", "FF9D97", "FF701F", "FFB21D", "CFD231", "48F90A", "92CC17", "3DDB86", "1A9334", "00D4BB",
             "2C99A8", "00C2FF", "344593", "6473FF", "0018EC", "8438FF", "520085", "CB38FF", "FF95C8", "FF37C7",
-        )#各种预选好的颜色
+        )#colors
         self.palette = [self.hex2rgb(f"#{c}") for c in hexs]
         self.n = len(self.palette)
 
@@ -63,40 +64,40 @@ class Colors:
         """Converts hexadecimal color `h` to an RGB tuple (PIL-compatible) with order (R, G, B)."""
         return tuple(int(h[1 + i: 1 + i + 2], 16) for i in (0, 2, 4))
 
-#画框的函数
+#draw boxes
 def draw_images(image, boxes, classes, scores, colors, xyxy=True):
     if isinstance(image, np.ndarray):
         image = Image.fromarray(image[:, :, ::-1])
     if isinstance(boxes, torch.Tensor):
         boxes = boxes.cpu().numpy()
 
-    # 初始化字体
+    # text setting
     font = ImageFont.truetype(font='configs/simhei.ttf', size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
     thickness = max((image.size[0] + image.size[1]) // 300, 1)
     draw = ImageDraw.Draw(image)
 
-    # 维护每个类别最高得分的框
+    # save boxes with highest score as priority
     best_boxes = {}
     for i, (box, cls, score) in enumerate(zip(boxes, classes, scores)):
         if cls not in best_boxes or best_boxes[cls][1] < score:
             best_boxes[cls] = (box, score, colors[i])
 
-    # 绘制每个类别最高得分的框
+    # draw highest score target at realtime
     for cls, (box, score, color) in best_boxes.items():
         x1, y1, x2, y2 = box
         label = f'{cls}:{score:.2f}'
         text_origin = (x1, y1 - 10)
 
-        # 绘制边框和标签
+        # box and label
         draw.rectangle([x1, y1, x2, y2], outline=color, width=thickness)
         draw.rectangle([text_origin[0], text_origin[1], text_origin[0] + 100, text_origin[1] + 20], fill=color)
         draw.text(text_origin, label, fill=(0, 0, 0), font=font)
 
     return image
 
-#预载glip模型，此文件夹中需要把路径从E盘改为glip_tinyweights
+#preloading GLIP
 config_file = "configs/pretrain/glip_Swin_T_O365_GoldG.yaml"
-weight_file = r'E:/premodel/glip_tiny_model_o365_goldg_cc_sbu.pth'
+weight_file = r'path/to/premodel/glip_tiny_model_o365_goldg_cc_sbu.pth'
 
 # update the config options with the config file
 # manual override some options
@@ -115,25 +116,23 @@ glip_demo = GLIPDemo(
 
 
 def glip_inference(image_, caption_):
-    # 为不同类别设置颜色, 从caption提取的类别不同
     colors_ = Colors()
 
     preds = glip_demo.compute_prediction(image_, caption_)
     top_preds = glip_demo._post_process(preds, threshold=0.3)
 
-    # 从预测结果中提取预测类别,得分和检测框
+    # extract label, score and box from prediction results
     labels = top_preds.get_field("labels").tolist()
     scores = top_preds.get_field("scores").tolist()
     boxes = top_preds.bbox.detach().cpu().numpy()
 
-    # 为每个预测类别设置框颜色
+    # setting colors for boxes
     colors = [colors_(idx) for idx in labels]
-    # 获得标签数字对应的类别名
     labels_names = glip_demo.get_label_names(labels)
 
     return boxes, scores, labels_names, colors
     
-# 创建 'imgg' 和 'depth' 等文件夹（如果尚不存在）
+# create paths
 imgg_path = 'E:/results/img'
 depth_path = 'E:/results/depth'
 output_path = 'E:/results/pixel'
@@ -144,7 +143,7 @@ for path in [imgg_path, depth_path, output_path, threed_position_path, final_thr
     if not os.path.exists(path):
         os.makedirs(path)
 
-# 录音
+# record audio
 def record_audio(duration=10, sample_rate=44100, channels=1):
     print("Recording...")
     recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=channels)
@@ -155,89 +154,87 @@ def save_audio(file_path, data, sample_rate=44100):
     write(file_path, sample_rate, data)
     print(f"Audio saved to {file_path}")
 
-#利用spacy内置模型执行名词分割
-#由于glip生成的名词顺序并不是按照whisper的语序来的，如果要用固定语序那就从录音里把名词抠出，然后重新按语序排列
+#Use Spacy's built-in model for noun segmentation
+#Since the noun order generated by GLIP does not follow the sequence of Whisper, if a fixed order is needed, 
+#extract the nouns from the recording and rearrange them according to the original sequence.
 def extract_nouns(text):
     doc = nlp(text)
-    nouns = [token.text for token in doc if token.pos_ == "NOUN"]  # 提取名词
+    nouns = [token.text for token in doc if token.pos_ == "NOUN"]  # extract nouns
     return nouns
 
 def process_data_and_filter(final_path, data):
-    # 解析数据并按标签和置信度筛选最佳记录
+    # list record by the order of scores
     best_records = {}
     for line in data:
         parts = line.strip().split(',')
         X, Y, Z, width, label, score = parts
         score = float(score)
-
-        # 检查是否为该标签找到更高的置信度
+        
         if label not in best_records or best_records[label]['score'] < score:
             best_records[label] = {'score': score, 'entry': line.strip()}
 
-    # 将最佳记录写入最终文件
+    # record scores
     with open(final_path, 'w') as f:
         for record in best_records.values():
             f.write(record['entry'] + '\n')
 
 def main():
-    # 录音参数
     duration = 5  # seconds
     sample_rate = 44100  # Sample rate in Hz
     audio_directory = 'E:\\audio'
     if not os.path.exists(audio_directory):
         os.makedirs(audio_directory)
 
-    # 录制环境噪声
-    noise_data = record_audio(duration=8)  # 录制5秒的噪声
+    # record environment sound
+    noise_data = record_audio(duration=8)  # 8 seconds
     noise_file_path = os.path.join(audio_directory, "noise.wav")
     save_audio(noise_file_path, noise_data)
 
-    # 录制主音频
-    main_audio_data = record_audio(duration=8)  # 主录音时间可以根据需要设定
+    # record main audio
+    main_audio_data = record_audio(duration=8) 
     main_audio_file_path = os.path.join(audio_directory, "main_audio.wav")
     save_audio(main_audio_file_path, main_audio_data)
     
-    # 读取噪声和主音频
+    # load noisy and main audio
     noise_audio, _ = sf.read(noise_file_path)
     main_audio, sample_rate = sf.read(main_audio_file_path)
 
 
-    # 应用噪声降噪
+    # noise reducing
     audio_clean = nr.reduce_noise(y=main_audio, sr=sample_rate, y_noise=noise_audio)
     clean_audio_file_path = os.path.join(audio_directory, "clean_audio.wav")
     sf.write(clean_audio_file_path, audio_clean, sample_rate)
     print("Noise reduced audio saved.")
 
 
-    # 读取whisper模型
+    # load whisper model
     model = whisper.load_model("base")
 
-    # 录音转译
-    result = model.transcribe(clean_audio_file_path, language="zh")  # 固定转换中文
-    #result = model.transcribe(clean_audio_file_path, language="en") # 固定转换为英文
+    # translate
+    result = model.transcribe(clean_audio_file_path, language="zh")  # default language is Chinese
     
-    # 内容中译英
+    # translate from Chinese to English
     caption = result["text"]
     print(f"Transcription: {caption}")
     english_translation = translate_zh_to_en(caption)
     print(english_translation)
    
 
-    # 从英文句中提取关键词
+    # extract nouns from English sentences
     keywords = extract_nouns(english_translation)
     print("Extracted Keywords:", keywords)
 
-    # 构建相机参数
+    # depth camear setting
     pipeline = rs.pipeline()
     config = rs.config()
     config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
     config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
 
-    # RGB相机与深度相机校准
+    # RGB and Depth camera calibration
     align_to = rs.stream.color
     alignedFs = rs.align(align_to)
 
-    # 相机内参调用
+    #  camera internal parameters
     profile = pipeline.start(config)
     video_profile = rs.video_stream_profile(profile.get_stream(rs.stream.color))
     intrinsics = video_profile.get_intrinsics()
@@ -297,7 +294,6 @@ def main():
                 written = set()
                 for score_data in best_scores.values():
                     data_string = score_data[1]
-               # 检查是否已经写入了相同的分数数据
                     if data_string not in written:
                         f.write(data_string)
                         written.add(data_string)
@@ -305,8 +301,6 @@ def main():
             cv2.imshow("Result", image_np)
             if cv2.waitKey(1) == 27:  # ESC key
                 break
-
-            #根据语音语序保存坐标点
             original_text_path = os.path.join(threed_position_path, f'{img_count}.txt')
             final_pos_path = os.path.join('E:\\results\\finalpos', f'{img_count}_reordered.txt')
             with open(original_text_path, 'r') as original_file:
@@ -324,7 +318,7 @@ def main():
             with open(final_pos_path, 'w') as final_file:
                 final_file.writelines(reordered_lines)
 
-            """ debugging #用于测试句型中单词的词性
+            """ debugging #check part of speech of sentences
 
             print("Labels:", labels)
             print("Keywords:", keywords)
@@ -334,7 +328,7 @@ def main():
             for keyword in keywords:
                 indices = keyword_indices[keyword]
                 reordered_lines.extend([lines[idx] for idx in indices])
-                print(f"Reordering {keyword}: Indices {indices}, Lines: {[lines[idx] for idx in indices]}")  # 这行会显示每个关键词和对应的行
+                print(f"Reordering {keyword}: Indices {indices}, Lines: {[lines[idx] for idx in indices]}") 
 
             with open(final_pos_path, 'w') as final_file:
                 final_file.writelines(reordered_lines)
