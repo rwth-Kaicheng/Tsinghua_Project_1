@@ -9,7 +9,7 @@ The script arm_execution.py should be run on a Linux system machine.
 Ubuntu 20.04 is recommended for optimal compatibility.
 
 
-
+The demo.mp4 was recorded at Centre for Brain Inspired Computing Research, Department of Precision Instrument, Tsinghua University. In this demo, the speech content is: '把柠檬、橘子和苹果放到白色盆里' ('Put lemon, orange and apple in the white pot.' in English)
 
 
 
