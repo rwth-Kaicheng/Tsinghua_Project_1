@@ -133,11 +133,11 @@ def glip_inference(image_, caption_):
     return boxes, scores, labels_names, colors
     
 # create paths
-imgg_path = 'E:/results/img'
-depth_path = 'E:/results/depth'
-output_path = 'E:/results/pixel'
-threed_position_path = 'E:/results/3Dposition'
-final_threed_position_path = 'E:/results/final3Dposition'
+imgg_path = 'Path/to/img'
+depth_path = 'Path/to/depth'
+output_path = 'Path/to/pixel'
+threed_position_path = 'Path/to/3Dposition'
+final_threed_position_path = 'Path/to/final3Dposition'
 
 for path in [imgg_path, depth_path, output_path, threed_position_path, final_threed_position_path]:
     if not os.path.exists(path):
@@ -271,7 +271,6 @@ def main():
             cv2.imwrite(color_img_path, image_np)
             np.save(depth_img_path, depth_image)
 
-            # 存取像素中心和路径
             with open(pixel_info_path, 'w') as f:
                 for box, label_name in zip(boxes, labels_names):
                     center_x = int((box[0] + box[2]) / 2)
