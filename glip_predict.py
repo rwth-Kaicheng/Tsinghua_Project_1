@@ -49,7 +49,7 @@ def draw_images(image, boxes, classes, scores, colors, xyxy=True):
     Args:
         image: pillow and numpy, finally changed to pillow,h,w,c
         boxes: tensor or numpy, finally changed to numpy
-        xyxy: 默认是xyxy格式, 如果为False,就是xywh格式,需要进行一次格式转换
+        xyxy: xyxy type default
         classes: box class, list
         scores: predict score for boxes, list
         colors: box color
